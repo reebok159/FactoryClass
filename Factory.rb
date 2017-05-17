@@ -1,97 +1,55 @@
 class Factory
-  class << self
-    alias_method :nnew, :new
-  end
-
   def self.new(*args, &block)
-    attrs = args.map do |a|
-      case a
-      when Symbol
-    	  a
-      when String
-    	  a.to_sym
+    raise NameError if args.length == 1 && !args[0].is_a?(Symbol)
+    raise ArgumentError if args.length == 0
+
+    attrs = args.map do |value|
+      case value
+        when Symbol
+          value
+        when String
+          value.to_sym
       end
     end
 
-    klass = Class.new self do
+    Class.new do
+      attr_accessor *attrs
+      define_method :initialize do |*params|
+        if params.length > attrs.length
+          raise ArgumentError
+        end
 
-    	attr_accessor(*attrs)
-
-      def self.new(*attrs, &block)
-       nnew(*attrs, &block)
+        attrs.each_with_index do |attr, i|
+          instance_variable_set(:"@#{attr}", params[i])
+        end
       end
 
-      const_set :FACTORY_ATTRS, attrs
-    end
+      define_method :[] do |key|
+        if key.is_a?(Integer)
+          key = instance_variables[key]
+        else
+          key = "@#{key}".to_sym
+        end
+        raise NameError unless key
+        raise NameError unless instance_variable_defined?(key)
 
-    klass.module_eval(&block) if block
-
-    klass
-  end
-
-  def _attrs
-    self.class::FACTORY_ATTRS
-  end
-
-  private :_attrs
-
-  def initialize(*args)
-    attrs = _attrs
-    unless attrs.length <= args.length
-      raise ArgumentError
-    end
-    attrs.each_with_index do |attr, i|
-      instance_variable_set(:"@#{attr}", args[i])
-    end
-  end
-
-
-  def [](key)
-    if key.kind_of?(Integer)
-      begin
-        key = _attrs[key]
-      rescue NameError
-     	  puts "Wrong Key"
+        instance_variable_get(key)
       end
-    else
-      raise NameError unless instance_variable_defined?(:"@#{key}")
-    end
-    instance_variable_get(:"@#{key}")
-  end
 
+      define_method :[]= do |key, value|
+        if key.is_a?(Integer)
+          key = instance_variables[key]
+        else
+          key = "@#{key}".to_sym
+        end
 
-  def []=(key, value)
-    if key.kind_of?(Integer)
-      begin
-        key = _attrs[key]
-      rescue NameError
-     	  puts "Wrong Key"
+        raise NameError unless key
+        raise NameError unless instance_variable_defined?(key)
+
+        instance_variable_set(key, value)
       end
-    else
-      raise NameError unless instance_variable_defined?(:"@#{key}")
+
+      class_eval &block if block_given?
     end
-    instance_variable_set(:"@#{key}", value)
-  end
-
-
-  def size
-    self._attrs.length
-  end
-
-
-  alias_method :length, :size
-
-
-  def to_a
-    res = _attrs.collect{ |key| instance_variable_get(:"@#{key}") }
-
-    res
-  end
-
-
-  def ==(other)
-    return false if self.class != other.class
-    other.to_a == self.to_a
   end
 end
-
